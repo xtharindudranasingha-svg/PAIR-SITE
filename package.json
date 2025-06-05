@@ -9,7 +9,7 @@
      "restart": "pm2 restart vajira-md"
     },
   "dependencies": {
-    "@whiskeysockets/baileys": "git+https://github.com/seiren-primrose/PL-Baileys.git",              
+    "@whiskeysockets/baileys": "git+https://github.com/video-yt/PL-Baileys.git",              
     "@adiwajshing/keyed-db": "^0.2.4",
     "qrcode": "^1.5.3",
     "awesome-phonenumber": "^2.64.0",
