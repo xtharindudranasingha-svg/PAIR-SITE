@@ -9,10 +9,9 @@
      "restart": "pm2 restart vajira-md"
     },
   "dependencies": {
-    "anju-xpro-baileys": "8.6.0",             
+    "@whiskeysockets/baileys": "git+https://github.com/seiren-primrose/PL-Baileys.git",              
     "@adiwajshing/keyed-db": "^0.2.4",
     "qrcode": "^1.5.3",
-    "jimp": "^0.16.13",
     "awesome-phonenumber": "^2.64.0",
     "pino": "^8.1.0",
     "phone" : "3.1.30",

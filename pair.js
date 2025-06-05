@@ -6,23 +6,13 @@ const router = express.Router();
 const pino = require('pino');
 const logger = pino({ level: 'info' });
 const {
-  BufferJSON,
-  Browsers,
-  WA_DEFAULT_EPHEMERAL,
-  default: makeWASocket,
-  generateWAMessageFromContent,
-  proto,
-  getBinaryNodeChildren,
-  generateWAMessageContent,
-  generateWAMessage,
-  prepareWAMessageMedia,
-  areJidsSameUser,
-  jidNormalizedUser,
-  getContentType,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  downloadContentFromMessage,
-} = require("anju-xpro-baileys");
+    makeWASocket,
+    useMultiFileAuthState,
+    delay,
+    Browsers,
+    makeCacheableSignalKeyStore,
+    DisconnectReason,
+} = require('@whiskeysockets/baileys');
 const { upload } = require('./mega');
 
 // Function to remove files/directories
@@ -44,19 +34,19 @@ function generateRandomText() {
 
 // Main pairing function
 async function GIFTED_MD_PAIR_CODE(id, num, res) {
-    const { version, isLatest } = await fetchLatestBaileysVersion();
     const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'temp', id));
     try {
         const sock = makeWASocket({
-      logger: pino({ level: "silent" }),
-      printQRInTerminal: false,
-      generateHighQualityLinkPreview: true,
-      auth: state,
-      defaultQueryTimeoutMs: undefined,
-      browser: Browsers.macOS("Firefox"),
-      syncFullHistory: false,
-      version:version
-    });
+            auth: {
+                creds: state.creds,
+                keys: makeCacheableSignalKeyStore(state.keys, logger),
+            },
+            printQRInTerminal: false,
+            generateHighQualityLinkPreview: true,
+            logger: logger,
+            syncFullHistory: false,
+            browser: Browsers.macOS('Safari'), // Use Safari as the browser
+        });
 
         if (!sock.authState.creds.registered) {
             await delay(1500);

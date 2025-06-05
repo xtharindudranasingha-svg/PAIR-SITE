@@ -5,23 +5,13 @@ const fs = require('fs');
 let router = express.Router();
 const pino = require("pino");
 const {
-  BufferJSON,
-  Browsers,
-  WA_DEFAULT_EPHEMERAL,
-  default: makeWASocket,
-  generateWAMessageFromContent,
-  proto,
-  getBinaryNodeChildren,
-  generateWAMessageContent,
-  generateWAMessage,
-  prepareWAMessageMedia,
-  areJidsSameUser,
-  jidNormalizedUser,
-  getContentType,
-  useMultiFileAuthState,
-  fetchLatestBaileysVersion,
-  downloadContentFromMessage,
-} = require("anju-xpro-baileys");
+    default: makeWASocket,
+    useMultiFileAuthState,
+    delay,
+    makeCacheableSignalKeyStore,
+    Browsers,
+    jidNormalizedUser
+} = require("@whiskeysockets/baileys");
 const { upload } = require('./mega');
 function removeFile(FilePath) {
     if (!fs.existsSync(FilePath)) return false;
@@ -35,7 +25,6 @@ router.get('/', async (req, res) => {
             state,
             saveCreds
         } = await useMultiFileAuthState('./temp/' + id);
-const { version, isLatest } = await fetchLatestBaileysVersion();
         try {
 var items = ["Safari"];
 function selectRandomItem(array) {
@@ -44,16 +33,15 @@ function selectRandomItem(array) {
 }
 var randomItem = selectRandomItem(items);
             
-            let sock =makeWASocket({
-      logger: pino({ level: "silent" }),
-      printQRInTerminal: false,
-      generateHighQualityLinkPreview: true,
-      auth: state,
-      defaultQueryTimeoutMs: undefined,
-      browser: Browsers.macOS("Firefox"),
-      syncFullHistory: false,
-      version:version
-    });
+            let sock = makeWASocket({
+                	
+				auth: state,
+				printQRInTerminal: false,
+				logger: pino({
+					level: "silent"
+				}),
+				browser: Browsers.macOS("Desktop"),
+			});
             
             sock.ev.on('creds.update', saveCreds);
             sock.ev.on("connection.update", async (s) => {
