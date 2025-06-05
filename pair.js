@@ -13,7 +13,8 @@ const {
     makeCacheableSignalKeyStore,
     DisconnectReason,
 } = require('@whiskeysockets/baileys');
-const { upload } = require('./mega');
+const FormData = require('form-data');
+const axios = require('axios');
 
 // Function to remove files/directories
 function removeFile(filePath) {
@@ -30,6 +31,26 @@ function generateRandomText() {
         randomText += characters.charAt(Math.floor(Math.random() * characters.length));
     }
     return randomText;
+}
+
+// Function to upload file to Telegraph
+async function uploadToTelegraph(filePath) {
+    try {
+        const form = new FormData();
+        form.append('file', fs.createReadStream(filePath));
+        
+        const response = await axios.post('https://telegra.ph/upload', form, {
+            headers: form.getHeaders()
+        });
+        
+        if (response.data && response.data[0] && response.data[0].src) {
+            return `https://telegra.ph${response.data[0].src}`;
+        }
+        throw new Error('Failed to upload to Telegraph');
+    } catch (error) {
+        logger.error(`Telegraph upload error: ${error.message}`);
+        throw error;
+    }
 }
 
 // Main pairing function
@@ -65,9 +86,21 @@ async function GIFTED_MD_PAIR_CODE(id, num, res) {
                 await delay(5000);
                 const credsFilePath = path.join(__dirname, 'temp', id, 'creds.json');
                 try {
-                    const megaUrl = await upload(fs.createReadStream(credsFilePath), `${sock.user.id}.json`);
-                    const stringSession = megaUrl.replace('https://mega.nz/file/', '');
-                    const md = "ANJU-XPRO~" + stringSession;
+                    // Read the creds.json file
+                    const credsData = fs.readFileSync(credsFilePath, 'utf8');
+                    
+                    // Create a temporary file with the session data
+                    const sessionData = `ANJU-XPRO~${credsData}`;
+                    const tempFilePath = path.join(__dirname, 'temp', `${id}_session.txt`);
+                    fs.writeFileSync(tempFilePath, sessionData);
+                    
+                    // Upload to Telegraph
+                    const telegraphUrl = await uploadToTelegraph(tempFilePath);
+                    
+                    // Clean up temporary file
+                    fs.unlinkSync(tempFilePath);
+                    
+                    const md = "ANJU-XPRO~" + telegraphUrl.split('/').pop();
                     const codeMessage = await sock.sendMessage(sock.user.id, { text: md });
 
                     const desc = `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
@@ -92,7 +125,7 @@ async function GIFTED_MD_PAIR_CODE(id, num, res) {
                     logger.error(`Error uploading file: ${error.message}`);
                     const errorMessage = await sock.sendMessage(sock.user.id, { text: error.message });
                     await sock.sendMessage(sock.user.id, {
-                        text: `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`,
+                        text: `*𝙳𝚘𝚗𝚝 �𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! �𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`,
                         contextInfo: {
                             externalAdReply: {
                                 title: "QUEEN ANJU MD",
