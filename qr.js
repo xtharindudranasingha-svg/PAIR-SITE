@@ -3,30 +3,43 @@ const express = require('express');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
-let router = express.Router();
+const router = express.Router();
 const pino = require("pino");
 const {
     default: makeWASocket,
     useMultiFileAuthState,
     delay,
     makeCacheableSignalKeyStore,
-    Browsers,
-    jidNormalizedUser
+    Browsers
 } = require("@whiskeysockets/baileys");
 const FormData = require('form-data');
 const axios = require('axios');
 
+// Improved file removal function
 function removeFile(FilePath) {
-    if (!fs.existsSync(FilePath)) return false;
-    fs.rmSync(FilePath, { recursive: true, force: true });
+    try {
+        if (fs.existsSync(FilePath)) {
+            fs.rmSync(FilePath, { recursive: true, force: true });
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error removing file:', error);
+        return false;
+    }
 }
 
-// Improved Telegraph upload function
-async function uploadToTelegraph(sessionData) {
+// Reliable Telegraph upload function
+async function uploadToTelegraph(data) {
     try {
-        // Create a temporary text file with the session data
-        const tempFilePath = path.join(__dirname, 'temp_session.txt');
-        fs.writeFileSync(tempFilePath, sessionData);
+        // Create a temporary file with the session data
+        const tempDir = path.join(__dirname, 'temp_uploads');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+        
+        const tempFilePath = path.join(tempDir, `session_${Date.now()}.txt`);
+        fs.writeFileSync(tempFilePath, data);
         
         const form = new FormData();
         form.append('file', fs.createReadStream(tempFilePath), {
@@ -40,119 +53,154 @@ async function uploadToTelegraph(sessionData) {
                 'Content-Length': form.getLengthSync()
             },
             maxContentLength: Infinity,
-            maxBodyLength: Infinity
+            maxBodyLength: Infinity,
+            timeout: 30000
         });
         
         // Clean up temporary file
         fs.unlinkSync(tempFilePath);
         
-        if (response.data && response.data[0] && response.data[0].src) {
-            return `https://telegra.ph${response.data[0].src}`;
+        if (!response.data?.[0]?.src) {
+            throw new Error('Invalid response from Telegraph');
         }
-        throw new Error('Invalid response from Telegraph');
+        
+        return `https://telegra.ph${response.data[0].src}`;
     } catch (error) {
-        console.error(`Telegraph upload error: ${error.message}`);
-        if (error.response) {
-            console.error('Response data:', error.response.data);
-        }
-        throw error;
+        console.error('Telegraph upload failed:', error.message);
+        throw new Error(`Upload failed: ${error.message}`);
     }
 }
 
 router.get('/', async (req, res) => {
-    const id = makeid();
-    async function GIFTED_MD_PAIR_CODE() {
-        const { state, saveCreds } = await useMultiFileAuthState('./temp/' + id);
-        try {
-            let sock = makeWASocket({
-                auth: state,
-                printQRInTerminal: false,
-                logger: pino({ level: "silent" }),
-                browser: Browsers.macOS("Desktop"),
-            });
+    const sessionId = makeid();
+    const tempDir = path.join(__dirname, 'temp', sessionId);
+    
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState(tempDir);
+        
+        const sock = makeWASocket({
+            auth: {
+                creds: state.creds,
+                keys: makeCacheableSignalKeyStore(state.keys, pino({ level: 'silent' })),
+            },
+            printQRInTerminal: false,
+            logger: pino({ level: 'silent' }),
+            browser: Browsers.macOS('Desktop'),
+            syncFullHistory: false
+        });
+
+        sock.ev.on('creds.update', saveCreds);
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect, qr } = update;
             
-            sock.ev.on('creds.update', saveCreds);
-            sock.ev.on("connection.update", async (s) => {
-                const { connection, lastDisconnect, qr } = s;
-                if (qr) await res.end(await QRCode.toBuffer(qr));
-                
-                if (connection == "open") {
-                    await delay(5000);
-                    try {
-                        // Read and prepare session data
-                        const credsPath = path.join(__dirname, `temp/${id}/creds.json`);
-                        const sessionData = fs.readFileSync(credsPath, 'utf8');
-                        const preparedData = "ANJU-XPRO~" + sessionData;
-                        
-                        // Upload to Telegraph
-                        const telegraphUrl = await uploadToTelegraph(preparedData);
-                        const fileId = telegraphUrl.split('/').pop();
-                        const sessionCode = "ANJU-XPRO~" + fileId;
-                        
-                        // Send session code to user
-                        let code = await sock.sendMessage(sock.user.id, { text: sessionCode });
-                        
-                        // Send info message
-                        let desc = `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
-                        
-                        await sock.sendMessage(sock.user.id, {
-                            text: desc,
-                            contextInfo: {
-                                externalAdReply: {
-                                    title: "QUEEN ANJU MD",
-                                    thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
-                                    sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
-                                    mediaType: 1,
-                                    renderLargerThumbnail: true
-                                }  
-                            }
-                        }, { quoted: code });
-                    } catch (e) {
-                        console.error('Error in session handling:', e);
-                        let errorMsg = await sock.sendMessage(sock.user.id, { 
-                            text: `Error: ${e.message}\n\nPlease try again or contact support.`
-                        });
-                        
-                        let desc = `*Failed to generate session code. Please try again.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
-                        await sock.sendMessage(sock.user.id, {
-                            text: desc,
-                            contextInfo: {
-                                externalAdReply: {
-                                    title: "QUEEN ANJU MD",
-                                    thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
-                                    sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
-                                    mediaType: 2,
-                                    renderLargerThumbnail: true
-                                }  
-                            }
-                        }, { quoted: errorMsg });
-                    } finally {
-                        await delay(100);
-                        await sock.ws.close();
-                        await removeFile('./temp/' + id);
-                        console.log(`👤 ${sock.user.id} Session completed. Restarting process...`);
-                        process.exit();
+            // Send QR code if available
+            if (qr) {
+                try {
+                    const qrBuffer = await QRCode.toBuffer(qr);
+                    if (!res.headersSent) {
+                        res.set('Content-Type', 'image/png');
+                        res.end(qrBuffer);
                     }
-                } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
-                    await delay(10000);
-                    GIFTED_MD_PAIR_CODE();
+                } catch (qrError) {
+                    console.error('QR generation failed:', qrError);
                 }
-            });
-        } catch (err) {
-            console.error("Initialization error:", err);
-            await removeFile('./temp/' + id);
-            if (!res.headersSent) {
-                await res.send({ code: "❗ Service Unavailable" });
             }
+            
+            if (connection === 'open') {
+                try {
+                    await delay(3000); // Give some time for connection to stabilize
+                    
+                    // Get credentials file path
+                    const credsPath = path.join(tempDir, 'creds.json');
+                    if (!fs.existsSync(credsPath)) {
+                        throw new Error('Credentials file not found');
+                    }
+                    
+                    // Read and prepare session data
+                    const credsData = fs.readFileSync(credsPath, 'utf8');
+                    const sessionData = `ANJU-XPRO~${credsData}`;
+                    
+                    // Upload to Telegraph
+                    const telegraphUrl = await uploadToTelegraph(sessionData);
+                    const fileId = telegraphUrl.split('/').pop();
+                    const sessionCode = `ANJU-XPRO~${fileId}`;
+                    
+                    // Send session code to user
+                    await sock.sendMessage(sock.user.id, { 
+                        text: sessionCode,
+                        contextInfo: {
+                            externalAdReply: {
+                                title: "QUEEN ANJU MD - SESSION CODE",
+                                body: "Use this code to restore your session",
+                                thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
+                                sourceUrl: "https://github.com/Mrrashmika/Queen_Anju-MD",
+                                mediaType: 1
+                            }
+                        }
+                    });
+                    
+                    // Send instructions
+                    const instructions = `*🔒 SESSION GENERATED SUCCESSFULLY 🔒*\n\n`
+                        + `*⚠️ IMPORTANT:*\n`
+                        + `• DO NOT share this code with anyone!\n`
+                        + `• This code gives full access to your WhatsApp account\n\n`
+                        + `*📌 How to use:*\n`
+                        + `1. Copy the session code above\n`
+                        + `2. Use it when setting up your bot\n\n`
+                        + `*🔗 GitHub:* https://github.com/Mrrashmika/Queen_Anju-MD`;
+                    
+                    await sock.sendMessage(sock.user.id, { 
+                        text: instructions,
+                        contextInfo: {
+                            externalAdReply: {
+                                title: "QUEEN ANJU MD",
+                                body: "Session generation complete",
+                                thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
+                                sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
+                                mediaType: 1
+                            }
+                        }
+                    });
+                    
+                } catch (error) {
+                    console.error('Session generation error:', error);
+                    await sock.sendMessage(sock.user.id, {
+                        text: `❌ *SESSION GENERATION FAILED* ❌\n\n`
+                            + `Error: ${error.message}\n\n`
+                            + `Please try again or contact support.`
+                    });
+                } finally {
+                    // Clean up and close connection
+                    await delay(1000);
+                    removeFile(tempDir);
+                    sock.ws.close();
+                    process.exit(0);
+                }
+            }
+            
+            if (connection === 'close') {
+                if (lastDisconnect?.error?.output?.statusCode !== 401) {
+                    console.log('Connection closed, reconnecting...');
+                    await delay(5000);
+                    removeFile(tempDir);
+                    return router.handle(req, res); // Restart the process
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Initialization error:', error);
+        removeFile(tempDir);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to initialize session' });
         }
     }
-    await GIFTED_MD_PAIR_CODE();
 });
 
-// Restart every 30 minutes
+// Restart every 30 minutes to prevent memory leaks
 setInterval(() => {
-    console.log("☘️ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...");
-    process.exit();
+    console.log('🔄 Restarting process to maintain stability...');
+    process.exit(0);
 }, 1800000); // 30 minutes
 
 module.exports = router;
