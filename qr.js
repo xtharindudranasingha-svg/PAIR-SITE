@@ -21,22 +21,40 @@ function removeFile(FilePath) {
     fs.rmSync(FilePath, { recursive: true, force: true });
 }
 
-// Function to upload file to Telegraph
-async function uploadToTelegraph(filePath) {
+// Improved Telegraph upload function
+async function uploadToTelegraph(sessionData) {
     try {
+        // Create a temporary text file with the session data
+        const tempFilePath = path.join(__dirname, 'temp_session.txt');
+        fs.writeFileSync(tempFilePath, sessionData);
+        
         const form = new FormData();
-        form.append('file', fs.createReadStream(filePath));
+        form.append('file', fs.createReadStream(tempFilePath), {
+            filename: 'session.txt',
+            contentType: 'text/plain'
+        });
         
         const response = await axios.post('https://telegra.ph/upload', form, {
-            headers: form.getHeaders()
+            headers: {
+                ...form.getHeaders(),
+                'Content-Length': form.getLengthSync()
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity
         });
+        
+        // Clean up temporary file
+        fs.unlinkSync(tempFilePath);
         
         if (response.data && response.data[0] && response.data[0].src) {
             return `https://telegra.ph${response.data[0].src}`;
         }
-        throw new Error('Failed to upload to Telegraph');
+        throw new Error('Invalid response from Telegraph');
     } catch (error) {
         console.error(`Telegraph upload error: ${error.message}`);
+        if (error.response) {
+            console.error('Response data:', error.response.data);
+        }
         throw error;
     }
 }
@@ -46,13 +64,6 @@ router.get('/', async (req, res) => {
     async function GIFTED_MD_PAIR_CODE() {
         const { state, saveCreds } = await useMultiFileAuthState('./temp/' + id);
         try {
-            var items = ["Safari"];
-            function selectRandomItem(array) {
-                var randomIndex = Math.floor(Math.random() * array.length);
-                return array[randomIndex];
-            }
-            var randomItem = selectRandomItem(items);
-            
             let sock = makeWASocket({
                 auth: state,
                 printQRInTerminal: false,
@@ -67,28 +78,21 @@ router.get('/', async (req, res) => {
                 
                 if (connection == "open") {
                     await delay(5000);
-                    let data = fs.readFileSync(__dirname + `/temp/${id}/creds.json`);
-                    let rf = __dirname + `/temp/${id}/creds.json`;
-                    
-                    function generateRandomText() {
-                        const prefix = "3EB";
-                        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-                        let randomText = prefix;
-                        for (let i = prefix.length; i < 22; i++) {
-                            const randomIndex = Math.floor(Math.random() * characters.length);
-                            randomText += characters.charAt(randomIndex);
-                        }
-                        return randomText;
-                    }
-                    
-                    const randomText = generateRandomText();
                     try {
-                        // Upload to Telegraph
-                        const telegraphUrl = await uploadToTelegraph(rf);
-                        const fileId = telegraphUrl.split('/').pop();
-                        let md = "ANJU-XPRO~" + fileId;
+                        // Read and prepare session data
+                        const credsPath = path.join(__dirname, `temp/${id}/creds.json`);
+                        const sessionData = fs.readFileSync(credsPath, 'utf8');
+                        const preparedData = "ANJU-XPRO~" + sessionData;
                         
-                        let code = await sock.sendMessage(sock.user.id, { text: md });
+                        // Upload to Telegraph
+                        const telegraphUrl = await uploadToTelegraph(preparedData);
+                        const fileId = telegraphUrl.split('/').pop();
+                        const sessionCode = "ANJU-XPRO~" + fileId;
+                        
+                        // Send session code to user
+                        let code = await sock.sendMessage(sock.user.id, { text: sessionCode });
+                        
+                        // Send info message
                         let desc = `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
                         
                         await sock.sendMessage(sock.user.id, {
@@ -104,9 +108,12 @@ router.get('/', async (req, res) => {
                             }
                         }, { quoted: code });
                     } catch (e) {
-                        let ddd = await sock.sendMessage(sock.user.id, { text: e.message });
-                        let desc = `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
+                        console.error('Error in session handling:', e);
+                        let errorMsg = await sock.sendMessage(sock.user.id, { 
+                            text: `Error: ${e.message}\n\nPlease try again or contact support.`
+                        });
                         
+                        let desc = `*Failed to generate session code. Please try again.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
                         await sock.sendMessage(sock.user.id, {
                             text: desc,
                             contextInfo: {
@@ -115,26 +122,24 @@ router.get('/', async (req, res) => {
                                     thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
                                     sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
                                     mediaType: 2,
-                                    renderLargerThumbnail: true,
-                                    showAdAttribution: true
+                                    renderLargerThumbnail: true
                                 }  
                             }
-                        }, { quoted: ddd });
+                        }, { quoted: errorMsg });
+                    } finally {
+                        await delay(100);
+                        await sock.ws.close();
+                        await removeFile('./temp/' + id);
+                        console.log(`👤 ${sock.user.id} Session completed. Restarting process...`);
+                        process.exit();
                     }
-                    
-                    await delay(10);
-                    await sock.ws.close();
-                    await removeFile('./temp/' + id);
-                    console.log(`👤 ${sock.user.id} 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗲𝗱 ✅ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...`);
-                    await delay(10);
-                    process.exit();
-                } else if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
-                    await delay(10);
+                } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
+                    await delay(10000);
                     GIFTED_MD_PAIR_CODE();
                 }
             });
         } catch (err) {
-            console.log("service restarted", err);
+            console.error("Initialization error:", err);
             await removeFile('./temp/' + id);
             if (!res.headersSent) {
                 await res.send({ code: "❗ Service Unavailable" });
@@ -144,9 +149,10 @@ router.get('/', async (req, res) => {
     await GIFTED_MD_PAIR_CODE();
 });
 
+// Restart every 30 minutes
 setInterval(() => {
     console.log("☘️ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...");
     process.exit();
-}, 180000); // 30min
+}, 1800000); // 30 minutes
 
 module.exports = router;
