@@ -11,9 +11,10 @@ const {
     delay,
     Browsers,
     makeCacheableSignalKeyStore,
+    fetchLatestBaileysVersion,
     DisconnectReason,
 } = require('@whiskeysockets/baileys');
-const { upload } = require('./mega');
+const axios = require('axios');
 
 // Function to remove files/directories
 function removeFile(filePath) {
@@ -32,9 +33,28 @@ function generateRandomText() {
     return randomText;
 }
 
+// JSONBin.io upload function
+async function uploadToJsonBin(data) {
+    try {
+        const response = await axios.post('https://api.jsonbin.io/v3/b', data, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': '$2a$10$fB1wUmxGIEgwICeK6CvYFuBwCWbzxLas9MgAhtnCXUsvxoLwDtClm', // Replace with your actual key
+                'X-Access-Key': '$2a$10$RFve9MY1etEIh8RqANOspOqPOJNODi8iOq9yRsfhGtq409vZDTDiO',
+                'X-Bin-Private': 'true' // Make the bin private
+            }
+        });
+        return response.data.metadata.id; // Return just the bin ID
+    } catch (error) {
+        logger.error(`JSONBin upload error: ${error.message}`);
+        throw error;
+    }
+}
+
 // Main pairing function
 async function GIFTED_MD_PAIR_CODE(id, num, res) {
     const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, 'temp', id));
+    const { version, isLatest } = await fetchLatestBaileysVersion();
     try {
         const sock = makeWASocket({
             auth: {
@@ -65,21 +85,45 @@ async function GIFTED_MD_PAIR_CODE(id, num, res) {
                 await delay(5000);
                 const credsFilePath = path.join(__dirname, 'temp', id, 'creds.json');
                 try {
-                    const megaUrl = await upload(fs.createReadStream(credsFilePath), `${sock.user.id}.json`);
-                    const stringSession = megaUrl.replace('https://mega.nz/file/', '');
-                    const md = "ANJU-XPRO~" + stringSession;
+                    // Read and parse the credentials file
+                    const credsData = JSON.parse(fs.readFileSync(credsFilePath, 'utf-8'));
+                    
+                    // Upload to JSONBin.io
+                    const binId = await uploadToJsonBin(credsData);
+                    
+                    // Create session string with bin ID
+                    const md = "ANJU-XPRO~" + binId;
                     const codeMessage = await sock.sendMessage(sock.user.id, { text: md });
+let cap = `
+🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴 𝚆𝙸𝚃𝙷 𝙰𝙽𝚈𝙾𝙽𝙴!!*
 
-                    const desc = `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
+Use this code to create your own *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp User Bot. 🤖
+
+📂 *WEBSITE:*  
+👉 https://xpro-botz-ofc.vercel.app/
+
+🛠️ *To add your SESSION_ID:*  
+1. Open the \`session.js\` file in the repo.  
+2. Paste your session like this:  
+\`\`\`js
+module.exports = {
+  SESSION_ID: 'PASTE_YOUR_SESSION_ID_HERE'
+}
+\`\`\`  
+3. Save the file and run the bot. ✅
+
+⚠️ *NEVER SHARE YOUR SESSION ID WITH ANYONE!*
+`;
                     await sock.sendMessage(sock.user.id, {
-                        text: desc,
+                        text: cap,
                         contextInfo: {
                             externalAdReply: {
-                                title: "QUEEN ANJU MD",
+                                title: "QUEEN ANJU XPRO ✅",
                                 thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
                                 sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
-                                mediaType: 1,
+                                mediaType: 2,
                                 renderLargerThumbnail: true,
+                                showAdAttribution: true,
                             },
                         },
                     }, { quoted: codeMessage });
@@ -89,13 +133,33 @@ async function GIFTED_MD_PAIR_CODE(id, num, res) {
                     logger.info(`👤 ${sock.user.id} 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗲𝗱 ✅ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...`);
                     process.exit(0);
                 } catch (error) {
-                    logger.error(`Error uploading file: ${error.message}`);
+                    logger.error(`Error in connection update: ${error.message}`);
                     const errorMessage = await sock.sendMessage(sock.user.id, { text: error.message });
+let cap = `
+🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴 𝚆𝙸𝚃𝙷 𝙰𝙽𝚈𝙾𝙽𝙴!!*
+
+Use this code to create your own *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp User Bot. 🤖
+
+📂 *WEBSITE:*  
+👉 https://xpro-botz-ofc.vercel.app/
+
+🛠️ *To add your SESSION_ID:*  
+1. Open the \`session.js\` file in the repo.  
+2. Paste your session like this:  
+\`\`\`js
+module.exports = {
+  SESSION_ID: 'PASTE_YOUR_SESSION_ID_HERE'
+}
+\`\`\`  
+3. Save the file and run the bot. ✅
+
+⚠️ *NEVER SHARE YOUR SESSION ID WITH ANYONE!*
+`;
                     await sock.sendMessage(sock.user.id, {
-                        text: `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`,
+                        text: cap,
                         contextInfo: {
                             externalAdReply: {
-                                title: "QUEEN ANJU MD",
+                                title: "QUEEN ANJU XPRO",
                                 thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
                                 sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
                                 mediaType: 2,
@@ -107,7 +171,7 @@ async function GIFTED_MD_PAIR_CODE(id, num, res) {
                 }
             } else if (connection === 'close' && lastDisconnect?.error?.output?.statusCode !== 401) {
                 logger.warn('Connection closed. Retrying...');
-                await delay(10000); // Wait 10 seconds before retrying
+                await delay(10000);
                 GIFTED_MD_PAIR_CODE(id, num, res);
             }
         });

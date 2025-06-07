@@ -12,36 +12,56 @@ const {
     Browsers,
     jidNormalizedUser
 } = require("@whiskeysockets/baileys");
-const { upload } = require('./mega');
+const axios = require('axios');
+
 function removeFile(FilePath) {
     if (!fs.existsSync(FilePath)) return false;
     fs.rmSync(FilePath, { recursive: true, force: true });
 }
+
+async function uploadToJsonBin(data) {
+    try {
+        const response = await axios.post('https://api.jsonbin.io/v3/b', data, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': '$2a$10$fB1wUmxGIEgwICeK6CvYFuBwCWbzxLas9MgAhtnCXUsvxoLwDtClm', // Replace with your actual key
+                'X-Access-Key': '$2a$10$RFve9MY1etEIh8RqANOspOqPOJNODi8iOq9yRsfhGtq409vZDTDiO',
+                'X-Bin-Private': 'true' // Make the bin private
+            }
+        });
+        
+        // Return the bin ID from the metadata
+        return response.data.metadata.id;
+    } catch (error) {
+        console.error('Error uploading to JSONBin:', error);
+        throw error;
+    }
+}
+
 router.get('/', async (req, res) => {
     const id = makeid();
- //   let num = req.query.number;
+    
     async function GIFTED_MD_PAIR_CODE() {
         const {
             state,
             saveCreds
         } = await useMultiFileAuthState('./temp/' + id);
         try {
-var items = ["Safari"];
-function selectRandomItem(array) {
-  var randomIndex = Math.floor(Math.random() * array.length);
-  return array[randomIndex];
-}
-var randomItem = selectRandomItem(items);
+            var items = ["Safari"];
+            function selectRandomItem(array) {
+                var randomIndex = Math.floor(Math.random() * array.length);
+                return array[randomIndex];
+            }
+            var randomItem = selectRandomItem(items);
             
             let sock = makeWASocket({
-                	
-				auth: state,
-				printQRInTerminal: false,
-				logger: pino({
-					level: "silent"
-				}),
-				browser: Browsers.macOS("Desktop"),
-			});
+                auth: state,
+                printQRInTerminal: false,
+                logger: pino({
+                    level: "silent"
+                }),
+                browser: Browsers.macOS("Desktop"),
+            });
             
             sock.ev.on('creds.update', saveCreds);
             sock.ev.on("connection.update", async (s) => {
@@ -50,11 +70,12 @@ var randomItem = selectRandomItem(items);
                     lastDisconnect,
                     qr
                 } = s;
-              if (qr) await res.end(await QRCode.toBuffer(qr));
+                if (qr) await res.end(await QRCode.toBuffer(qr));
                 if (connection == "open") {
                     await delay(5000);
                     let data = fs.readFileSync(__dirname + `/temp/${id}/creds.json`);
                     let rf = __dirname + `/temp/${id}/creds.json`;
+                    
                     function generateRandomText() {
                         const prefix = "3EB";
                         const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -65,44 +86,84 @@ var randomItem = selectRandomItem(items);
                         }
                         return randomText;
                     }
+                    
                     const randomText = generateRandomText();
                     try {
-                        const { upload } = require('./mega');
-                        const mega_url = await upload(fs.createReadStream(rf), `${sock.user.id}.json`);
-                        const string_session = mega_url.replace('https://mega.nz/file/', '');
-                        let md = "ANJU-XPRO~" + string_session;
+                        const jsonData = JSON.parse(data.toString());
+                        const binId = await uploadToJsonBin(jsonData);
+                        
+                        // Use the bin ID directly as the session string
+                        let md = "ANJU-XPRO~" + binId;
                         let code = await sock.sendMessage(sock.user.id, { text: md });
-                        let desc = `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
-                        await sock.sendMessage(sock.user.id, {
-text: desc,
-contextInfo: {
-externalAdReply: {
-title: "QUEEN ANJU MD",
-thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
-sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
-mediaType: 1,
-renderLargerThumbnail: true
-}  
+                        
+                        let cap = `
+🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴 𝚆𝙸𝚃𝙷 𝙰𝙽𝚈𝙾𝙽𝙴!!*
+
+Use this code to create your own *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp User Bot. 🤖
+
+📂 *WEBSITE:*  
+👉 https://xpro-botz-ofc.vercel.app/
+
+🛠️ *To add your SESSION_ID:*  
+1. Open the \`session.js\` file in the repo.  
+2. Paste your session like this:  
+\`\`\`js
+module.exports = {
+  SESSION_ID: 'PASTE_YOUR_SESSION_ID_HERE'
 }
-},
-{quoted:code })
+\`\`\`  
+3. Save the file and run the bot. ✅
+
+⚠️ *NEVER SHARE YOUR SESSION ID WITH ANYONE!*
+`;
+                    await sock.sendMessage(sock.user.id, {
+                        text: cap,
+                        contextInfo: {
+                            externalAdReply: {
+                                title: "QUEEN ANJU XPRO",
+                                thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
+                                sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
+                                mediaType: 2,
+                                renderLargerThumbnail: true,
+                                showAdAttribution: true,
+                            },
+                        },
+                    }, { quoted: code });
                     } catch (e) {
-                            let ddd = sock.sendMessage(sock.user.id, { text: e });
-                            let desc = `*𝙳𝚘𝚗𝚝 𝚜𝚑𝚊𝚛𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚠𝚒𝚝𝚑 𝚊𝚗𝚢𝚘𝚗𝚎!! 𝚄𝚜𝚎 𝚝𝚑𝚒𝚜 𝚌𝚘𝚍𝚎 𝚝𝚘 𝚌𝚛𝚎𝚊𝚝𝚎 QUEEN ANJU MD 𝚆𝚑𝚊𝚝𝚜𝚊𝚙𝚙 𝚄𝚜𝚎𝚛 𝚋𝚘𝚝.*\n\n ◦ *Github:* https://github.com/Mrrashmika/Queen_Anju-MD`;
-                            await sock.sendMessage(sock.user.id, {
-text: desc,
-contextInfo: {
-externalAdReply: {
-title: "QUEEN ANJU MD",
-thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
-sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
-mediaType: 2,
-renderLargerThumbnail: true,
-showAdAttribution: true
-}  
+                        let ddd = await sock.sendMessage(sock.user.id, { text: e.toString() });
+                       let cap = `
+🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴 𝚆𝙸𝚃𝙷 𝙰𝙽𝚈𝙾𝙽𝙴!!*
+
+Use this code to create your own *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp User Bot. 🤖
+
+📂 *WEBSITE:*  
+👉 https://xpro-botz-ofc.vercel.app/
+
+🛠️ *To add your SESSION_ID:*  
+1. Open the \`session.js\` file in the repo.  
+2. Paste your session like this:  
+\`\`\`js
+module.exports = {
+  SESSION_ID: 'PASTE_YOUR_SESSION_ID_HERE'
 }
-},
-{quoted:ddd })
+\`\`\`  
+3. Save the file and run the bot. ✅
+
+⚠️ *NEVER SHARE YOUR SESSION ID WITH ANYONE!*
+`;
+                    await sock.sendMessage(sock.user.id, {
+                        text: cap,
+                        contextInfo: {
+                            externalAdReply: {
+                                title: "QUEEN ANJU XPRO",
+                                thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
+                                sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
+                                mediaType: 2,
+                                renderLargerThumbnail: true,
+                                showAdAttribution: true,
+                            },
+                        },
+                    }, { quoted: ddd });
                     }
                     await delay(10);
                     await sock.ws.close();
@@ -116,7 +177,7 @@ showAdAttribution: true
                 }
             });
         } catch (err) {
-            console.log("service restated");
+            console.log("service restarted", err);
             await removeFile('./temp/' + id);
             if (!res.headersSent) {
                 await res.send({ code: "❗ Service Unavailable" });
@@ -125,8 +186,10 @@ showAdAttribution: true
     }
     await GIFTED_MD_PAIR_CODE();
 });
+
 setInterval(() => {
     console.log("☘️ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...");
     process.exit();
 }, 180000); //30min
+
 module.exports = router;
