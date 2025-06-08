@@ -2,6 +2,7 @@ const { makeid } = require('./gen-id');
 const express = require('express');
 const QRCode = require('qrcode');
 const fs = require('fs');
+const path = require('path');
 let router = express.Router();
 const pino = require("pino");
 const {
@@ -9,187 +10,101 @@ const {
     useMultiFileAuthState,
     delay,
     makeCacheableSignalKeyStore,
-    Browsers,
-    jidNormalizedUser
+    Browsers
 } = require("@whiskeysockets/baileys");
-const axios = require('axios');
+const { uploadFile } = require('telegra.ph-uploader');
 
 function removeFile(FilePath) {
     if (!fs.existsSync(FilePath)) return false;
     fs.rmSync(FilePath, { recursive: true, force: true });
 }
 
-async function uploadToJsonBin(data) {
+async function uploadToTelegraph(filePath) {
     try {
-        const response = await axios.post('https://api.jsonbin.io/v3/b', data, {
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Master-Key': '$2a$10$fB1wUmxGIEgwICeK6CvYFuBwCWbzxLas9MgAhtnCXUsvxoLwDtClm', // Replace with your actual key
-                'X-Access-Key': '$2a$10$RFve9MY1etEIh8RqANOspOqPOJNODi8iOq9yRsfhGtq409vZDTDiO',
-                'X-Bin-Private': 'true' // Make the bin private
-            }
-        });
-        
-        // Return the bin ID from the metadata
-        return response.data.metadata.id;
+        const result = await uploadFile(filePath);
+        if (!Array.isArray(result) || !result[0]?.src) {
+            throw new Error('Invalid response from Telegraph');
+        }
+        return `https://telegra.ph${result[0].src}`;
     } catch (error) {
-        console.error('Error uploading to JSONBin:', error);
+        console.error('Telegraph upload error:', error);
         throw error;
     }
 }
 
 router.get('/', async (req, res) => {
     const id = makeid();
+    const tempDir = path.join(__dirname, 'temp', id);
     
     async function GIFTED_MD_PAIR_CODE() {
-        const {
-            state,
-            saveCreds
-        } = await useMultiFileAuthState('./temp/' + id);
+        const { state, saveCreds } = await useMultiFileAuthState(tempDir);
         try {
-            var items = ["Safari"];
-            function selectRandomItem(array) {
-                var randomIndex = Math.floor(Math.random() * array.length);
-                return array[randomIndex];
-            }
-            var randomItem = selectRandomItem(items);
-            
             let sock = makeWASocket({
                 auth: state,
                 printQRInTerminal: false,
-                logger: pino({
-                    level: "silent"
-                }),
+                logger: pino({ level: "silent" }),
                 browser: Browsers.macOS("Desktop"),
             });
             
             sock.ev.on('creds.update', saveCreds);
-            sock.ev.on("connection.update", async (s) => {
-                const {
-                    connection,
-                    lastDisconnect,
-                    qr
-                } = s;
+            sock.ev.on("connection.update", async (update) => {
+                const { connection, lastDisconnect, qr } = update;
+                
                 if (qr) await res.end(await QRCode.toBuffer(qr));
-                if (connection == "open") {
-                    await delay(5000);
-                    let data = fs.readFileSync(__dirname + `/temp/${id}/creds.json`);
-                    let rf = __dirname + `/temp/${id}/creds.json`;
+                
+                if (connection === "open") {
+                    await delay(3000);
+                    const credsPath = path.join(tempDir, 'creds.json');
                     
-                    function generateRandomText() {
-                        const prefix = "3EB";
-                        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-                        let randomText = prefix;
-                        for (let i = prefix.length; i < 22; i++) {
-                            const randomIndex = Math.floor(Math.random() * characters.length);
-                            randomText += characters.charAt(randomIndex);
-                        }
-                        return randomText;
-                    }
-                    
-                    const randomText = generateRandomText();
                     try {
-                        const jsonData = JSON.parse(data.toString());
-                        const binId = await uploadToJsonBin(jsonData);
+                        const telegraphUrl = await uploadToTelegraph(credsPath);
+                        const sessionCode = "ANJU-XPRO~" + telegraphUrl;
                         
-                        // Use the bin ID directly as the session string
-                        let md = "ANJU-XPRO~" + binId;
-                        let code = await sock.sendMessage(sock.user.id, { text: md });
+                        await sock.sendMessage(sock.user.id, { text: sessionCode });
                         
-                        let cap = `
-🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴 𝚆𝙸𝚃𝙷 𝙰𝙽𝚈𝙾𝙽𝙴!!*
-
-Use this code to create your own *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp User Bot. 🤖
-
-📂 *WEBSITE:*  
-👉 https://xpro-botz-ofc.vercel.app/
-
-🛠️ *To add your SESSION_ID:*  
-1. Open the \`session.js\` file in the repo.  
-2. Paste your session like this:  
-\`\`\`js
-module.exports = {
-  SESSION_ID: 'PASTE_YOUR_SESSION_ID_HERE'
-}
-\`\`\`  
-3. Save the file and run the bot. ✅
-
-⚠️ *NEVER SHARE YOUR SESSION ID WITH ANYONE!*
-`;
-                    await sock.sendMessage(sock.user.id, {
-                        text: cap,
-                        contextInfo: {
-                            externalAdReply: {
-                                title: "QUEEN ANJU XPRO",
-                                thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
-                                sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
-                                mediaType: 2,
-                                renderLargerThumbnail: true,
-                                showAdAttribution: true,
-                            },
-                        },
-                    }, { quoted: code });
+                        const cap = `🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴!*\n\n` +
+                                   `Use this to create your *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp Bot\n\n` +
+                                   `📌 *WEBSITE:* https://xpro-botz-ofc.vercel.app/\n\n` +
+                                   `⚠️ *NEVER SHARE YOUR SESSION CODE!*`;
+                        
+                        await sock.sendMessage(sock.user.id, {
+                            text: cap,
+                            contextInfo: {
+                                externalAdReply: {
+                                    title: "QUEEN ANJU XPRO",
+                                    thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
+                                    sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
+                                    mediaType: 2,
+                                    renderLargerThumbnail: true
+                                }
+                            }
+                        });
+                        
+                        await sock.ws.close();
+                        removeFile(tempDir);
+                        console.log(`✅ ${sock.user.id} Connected - Restarting...`);
+                        process.exit(0);
                     } catch (e) {
-                        let ddd = await sock.sendMessage(sock.user.id, { text: e.toString() });
-                       let cap = `
-🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴 𝚆𝙸𝚃𝙷 𝙰𝙽𝚈𝙾𝙽𝙴!!*
-
-Use this code to create your own *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp User Bot. 🤖
-
-📂 *WEBSITE:*  
-👉 https://xpro-botz-ofc.vercel.app/
-
-🛠️ *To add your SESSION_ID:*  
-1. Open the \`session.js\` file in the repo.  
-2. Paste your session like this:  
-\`\`\`js
-module.exports = {
-  SESSION_ID: 'PASTE_YOUR_SESSION_ID_HERE'
-}
-\`\`\`  
-3. Save the file and run the bot. ✅
-
-⚠️ *NEVER SHARE YOUR SESSION ID WITH ANYONE!*
-`;
-                    await sock.sendMessage(sock.user.id, {
-                        text: cap,
-                        contextInfo: {
-                            externalAdReply: {
-                                title: "QUEEN ANJU XPRO",
-                                thumbnailUrl: "https://telegra.ph/file/adc46970456c26cad0c15.jpg",
-                                sourceUrl: "https://whatsapp.com/channel/0029Vaj5XmgFXUubAjlU5642",
-                                mediaType: 2,
-                                renderLargerThumbnail: true,
-                                showAdAttribution: true,
-                            },
-                        },
-                    }, { quoted: ddd });
+                        console.error("Upload error:", e);
+                        await sock.sendMessage(sock.user.id, { text: `Error: ${e.message}` });
+                        removeFile(tempDir);
+                        process.exit(1);
                     }
-                    await delay(10);
-                    await sock.ws.close();
-                    await removeFile('./temp/' + id);
-                    console.log(`👤 ${sock.user.id} 𝗖𝗼𝗻𝗻𝗲𝗰𝘁𝗲𝗱 ✅ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...`);
-                    await delay(10);
-                    process.exit();
-                } else if (connection === "close" && lastDisconnect && lastDisconnect.error && lastDisconnect.error.output.statusCode != 401) {
-                    await delay(10);
-                    GIFTED_MD_PAIR_CODE();
                 }
             });
         } catch (err) {
-            console.log("service restarted", err);
-            await removeFile('./temp/' + id);
-            if (!res.headersSent) {
-                await res.send({ code: "❗ Service Unavailable" });
-            }
+            console.error("Service error:", err);
+            removeFile(tempDir);
+            if (!res.headersSent) res.send({ code: "Service Unavailable" });
         }
     }
     await GIFTED_MD_PAIR_CODE();
 });
 
+// Restart every 30 minutes
 setInterval(() => {
-    console.log("☘️ 𝗥𝗲𝘀𝘁𝗮𝗿𝘁𝗶𝗻𝗴 𝗽𝗿𝗼𝗰𝗲𝘀𝘀...");
-    process.exit();
-}, 180000); //30min
+    console.log("🔄 Restarting process...");
+    process.exit(0);
+}, 1800000);
 
 module.exports = router;
