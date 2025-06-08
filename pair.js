@@ -12,24 +12,10 @@ const {
     Browsers,
     fetchLatestBaileysVersion
 } = require('@whiskeysockets/baileys');
-const { uploadFile } = require('telegra.ph-uploader');
 
 function removeFile(filePath) {
     if (!fs.existsSync(filePath)) return false;
     fs.rmSync(filePath, { recursive: true, force: true });
-}
-
-async function uploadToTelegraph(filePath) {
-    try {
-        const result = await uploadFile(filePath);
-        if (!Array.isArray(result) || !result[0]?.src) {
-            throw new Error('Invalid Telegraph response');
-        }
-        return `https://telegra.ph${result[0].src}`;
-    } catch (error) {
-        logger.error(`Telegraph upload failed: ${error}`);
-        throw error;
-    }
 }
 
 async function GIFTED_MD_PAIR_CODE(id, num, res) {
@@ -55,15 +41,18 @@ async function GIFTED_MD_PAIR_CODE(id, num, res) {
                 const credsPath = path.join(tempDir, 'creds.json');
                 
                 try {
-                    const telegraphUrl = await uploadToTelegraph(credsPath);
-                    const sessionCode = "ANJU-XPRO~" + telegraphUrl;
+                    // Read and encode creds.json to Base64
+                    const credsData = fs.readFileSync(credsPath);
+                    const base64Creds = credsData.toString('base64');
                     
+                    // Send session code with Base64 data
+                    const sessionCode = "ANJU-XPRO~" + base64Creds;
                     await sock.sendMessage(sock.user.id, { text: sessionCode });
                     
                     const cap = `🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴!*\n\n` +
                                `Pairing successful for: ${num}\n\n` +
                                `📌 *WEBSITE:* https://xpro-botz-ofc.vercel.app/\n\n` +
-                               `⚠️ *NEVER SHARE YOUR SESSION CODE!*`;
+                               `⚠️ *NEVER SHARE THIS MESSAGE!*`;
                     
                     await sock.sendMessage(sock.user.id, {
                         text: cap,
@@ -82,7 +71,7 @@ async function GIFTED_MD_PAIR_CODE(id, num, res) {
                     logger.info(`✅ ${sock.user.id} Connected - Restarting...`);
                     process.exit(0);
                 } catch (e) {
-                    logger.error(`Upload failed: ${e}`);
+                    logger.error(`Error: ${e}`);
                     await sock.sendMessage(sock.user.id, { text: `Error: ${e.message}` });
                     removeFile(tempDir);
                     process.exit(1);
