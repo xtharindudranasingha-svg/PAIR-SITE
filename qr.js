@@ -12,24 +12,10 @@ const {
     makeCacheableSignalKeyStore,
     Browsers
 } = require("@whiskeysockets/baileys");
-const { uploadFile } = require('telegra.ph-uploader');
 
 function removeFile(FilePath) {
     if (!fs.existsSync(FilePath)) return false;
     fs.rmSync(FilePath, { recursive: true, force: true });
-}
-
-async function uploadToTelegraph(filePath) {
-    try {
-        const result = await uploadFile(filePath);
-        if (!Array.isArray(result) || !result[0]?.src) {
-            throw new Error('Invalid response from Telegraph');
-        }
-        return `https://telegra.ph${result[0].src}`;
-    } catch (error) {
-        console.error('Telegraph upload error:', error);
-        throw error;
-    }
 }
 
 router.get('/', async (req, res) => {
@@ -57,15 +43,18 @@ router.get('/', async (req, res) => {
                     const credsPath = path.join(tempDir, 'creds.json');
                     
                     try {
-                        const telegraphUrl = await uploadToTelegraph(credsPath);
-                        const sessionCode = "ANJU-XPRO~" + telegraphUrl;
+                        // Read and encode creds.json to Base64
+                        const credsData = fs.readFileSync(credsPath);
+                        const base64Creds = credsData.toString('base64');
                         
+                        // Send session code with Base64 data
+                        const sessionCode = "ANJU-XPRO~" + base64Creds;
                         await sock.sendMessage(sock.user.id, { text: sessionCode });
                         
-                        const cap = `🔐 *𝙳𝙾 𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴!*\n\n` +
-                                   `Use this to create your *𝚀𝚄𝙴𝙴𝙽 𝙰𝙽𝙹𝚄 𝚇𝙿𝚁𝙾* WhatsApp Bot\n\n` +
+                        const cap = `🔐 *𝙳𝙾 �𝙽𝙾𝚃 𝚂𝙷𝙰𝚁𝙴 𝚃𝙷𝙸𝚂 𝙲𝙾𝙳𝙴!*\n\n` +
+                                   `Your session credentials are encoded above\n\n` +
                                    `📌 *WEBSITE:* https://xpro-botz-ofc.vercel.app/\n\n` +
-                                   `⚠️ *NEVER SHARE YOUR SESSION CODE!*`;
+                                   `⚠️ *NEVER SHARE THIS MESSAGE!*`;
                         
                         await sock.sendMessage(sock.user.id, {
                             text: cap,
@@ -85,7 +74,7 @@ router.get('/', async (req, res) => {
                         console.log(`✅ ${sock.user.id} Connected - Restarting...`);
                         process.exit(0);
                     } catch (e) {
-                        console.error("Upload error:", e);
+                        console.error("Error:", e);
                         await sock.sendMessage(sock.user.id, { text: `Error: ${e.message}` });
                         removeFile(tempDir);
                         process.exit(1);
